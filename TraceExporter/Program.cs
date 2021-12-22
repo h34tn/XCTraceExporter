@@ -21,6 +21,14 @@ namespace TraceExporter
                 mapIdTime.Add(node.Attributes["id"].Value, node.Attributes["fmt"].Value);
             }
 
+            // select the size-in-bytes
+            var sizeNodes = doc.SelectNodes("/trace-query-result/node/row/size-in-bytes/@id/..");
+            var mapidSize = new Dictionary<string, string>();
+            foreach (XmlNode node in sizeNodes)
+            {
+                mapidSize.Add(node.Attributes["id"].Value, node.Attributes["fmt"].Value);
+            }
+
             //var memNodes = doc.SelectNodes("/trace-query-result/node/row/process[@ref=\"5391\"]/../size-in-bytes[1]/@fmt");
             var targetProcessNode = doc.SelectSingleNode($"/trace-query-result/node/row/process/pid[@fmt={args[1]}]/..");
             if(targetProcessNode == null)
@@ -31,30 +39,35 @@ namespace TraceExporter
 
             string processID = targetProcessNode.Attributes["id"].Value;
 
-            StreamWriter file = new StreamWriter("result.csv");
-            // select the specified process nodes
-            var processNodes = doc.SelectNodes($"/trace-query-result/node/row/process[@ref={processID}]/..");
-            foreach(XmlNode node in processNodes)
+            using (StreamWriter file = new StreamWriter("result.csv"))
             {
-                string time;
-                string refTime = node["start-time"].GetAttribute("ref");
-                if (string.IsNullOrEmpty(refTime))
-                    time = node["start-time"].GetAttribute("fmt");
-                else
-                    mapIdTime.TryGetValue(refTime, out time);
-                if (!string.IsNullOrEmpty(time))
+                // select the specified process nodes
+                var processNodes = doc.SelectNodes($"/trace-query-result/node/row/process[@ref={processID}]/..");
+                foreach (XmlNode node in processNodes)
                 {
-                    string fmtMem = node["size-in-bytes"].GetAttribute("fmt");
-                    if (!string.IsNullOrEmpty(fmtMem))
-                        file.WriteLine($"{time},{float.Parse(fmtMem.Replace(" MiB", ""))}");
-                }
-                else
-                {
-                    Console.WriteLine($"Not found refTime {refTime}");
+                    string time;
+                    string refTime = node["start-time"].GetAttribute("ref");
+                    if (string.IsNullOrEmpty(refTime))
+                        time = node["start-time"].GetAttribute("fmt");
+                    else
+                        mapIdTime.TryGetValue(refTime, out time);
+                    if (!string.IsNullOrEmpty(time))
+                    {
+                        string fmtMem = node["size-in-bytes"].GetAttribute("fmt");
+                        if(string.IsNullOrEmpty(fmtMem))
+                        {
+                            string sizeRef = node["size-in-bytes"].GetAttribute("ref");
+                            mapidSize.TryGetValue(sizeRef, out fmtMem);
+                        }
+                        string fmtCpu = node["system-cpu-percent"].GetAttribute("fmt");
+                        file.WriteLine($"{time}, {float.Parse(fmtMem.Replace(" MiB", ""))}, {fmtCpu}");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"Not found refTime {refTime}");
+                    }
                 }
             }
-
-            file.Close();
         }
     }
 }
